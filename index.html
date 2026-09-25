@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Voxel Pagoda — three.js</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#b7cfe4}
+canvas{display:block;touch-action:none}
+#hud{position:fixed;left:14px;bottom:12px;font:12px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;color:#27394a;background:rgba(255,255,255,.5);padding:7px 11px;border-radius:8px;backdrop-filter:blur(4px);user-select:none;pointer-events:none}
+</style>
+</head>
+<body>
+<div id="hud">voxel pagoda · three.js<br>drag — orbit · wheel — zoom</div>
+<script type="module">
+import * as THREE from './lib/three.module.js';
+
+/* ---------------- palette ---------------- */
+const P = {
+  roof:0x33343e, roofLight:0x4b4d5c, fascia:0x22232b, gold:0xe3b54e,
+  wall:0xf3ecda, pillar:0x9e3b29, wood:0x7c4c2c, beam:0x5c3a21,
+  door:0x46301b, win:0x3c2a17,
+  stone:0x9c9da6, stoneDark:0x7b7c86,
+  grass:0x6f9e57, grassDark:0x5c8a46, path:0xbdb7a9,
+  trunk:0x6b4a30, leaf:0x4f8a3d, leafDark:0x3e722f,
+  light:0xffd27a,
+};
+
+/* deterministic noise */
+function hash(x,y,z){
+  let h=(x*374761393+y*668265263+z*1274126177)|0;
+  h=Math.imul(h^(h>>>13),1103515245);
+  return ((h^(h>>>16))>>>0)/4294967296;
+}
+
+/* ---------------- voxel collector ---------------- */
+const vox=[];
+function put(x,y,z,c,j=0){
+  if(j){ const f=1+(hash(x,y,z)-.5)*j; c=new THREE.Color(c).multiplyScalar(f).getHex(); }
+  vox.push({x,y,z,c});
+}
+function fill(x0,x1,z0,z1,y0,y1,c,j=0){
+  for(let x=x0;x<=x1;x++)for(let z=z0;z<=z1;z++)for(let y=y0;y<=y1;y++)put(x,y,z,c,j);
+}
+/* 1 at the four diagonal corners of a square footprint, 0 at edge midpoints */
+function corner(x,z){
+  const d=Math.hypot(x,z); if(d<.8) return 0;
+  return Math.pow(Math.abs(Math.sin(2*Math.atan2(z,x))),1.6);
+}
+
+/* concave roof with upturned corners: solid mass, flat underside,
+   profile half(l) = ridge + (eave-ridge)*u^1.55 + ext*u*cf, u=1 at eave */
+function roof(baseY,eave,ridge,H,lift,ext){
+  const m=eave+ext+1;
+  const cR=new THREE.Color(P.roof), cL=new THREE.Color(P.roofLight);
+  for(let x=-m;x<=m;x++)for(let z=-m;z<=m;z++){
+    const s=Math.max(Math.abs(x),Math.abs(z));
+    const cf=corner(x,z);
+    let lmax=-1;
+    for(let l=H-1;l>=0;l--){
+      const u=(H-1-l)/(H-1);
+      if(s<=ridge+(eave-ridge)*Math.pow(u,1.75)+ext*u*cf){lmax=l;break;}
+    }
+    if(lmax<0)continue;
+    const u=(H-1-lmax)/(H-1);
+    const top=baseY+lmax+Math.round(lift*cf*Math.pow(u,0.75));
+    for(let y=baseY;y<=top;y++){
+      let c;
+      if(y===baseY)c=P.fascia;
+      else if(y===top&&cf>.9&&u>.8)c=P.gold;
+      else c=cR.clone().lerp(cL,(y-baseY)/Math.max(1,top-baseY)).getHex();
+      put(x,y,z,c);
+    }
+  }
+}
+
+/* building floor: stone slab, walls, red corner pillars, door, windows, railing */
+function building(slabY,slabHalf,b,h,door){
+  fill(-slabHalf,slabHalf,-slabHalf,slabHalf,slabY,slabY,P.stone,.12);
+  const off=Math.max(2,b-3);
+  for(let y=slabY+1;y<=slabY+h;y++){
+    for(let x=-b;x<=b;x++)for(let z=-b;z<=b;z++){
+      if(Math.max(Math.abs(x),Math.abs(z))!==b)continue;
+      if(Math.abs(x)===b&&Math.abs(z)===b){put(x,y,z,P.pillar);continue;}
+      let c=P.wall;
+      const top=y===slabY+h;
+      if(top)c=P.beam;
+      else if(door&&z===b&&Math.abs(x)<=1&&y<=slabY+2)c=P.door;
+      else{
+        const win=(z===b||z===-b)?(Math.abs(z)===b&&Math.abs(x)===off)
+              :(x===b||x===-b)?(Math.abs(x)===b&&Math.abs(z)===off):false;
+        if(win&&y>=slabY+h-3&&y<=slabY+h-2)c=P.win;
+      }
+      put(x,y,z,c,.06);
+    }
+  }
+  for(let x=-slabHalf;x<=slabHalf;x++)for(let z=-slabHalf;z<=slabHalf;z++){
+    if(Math.max(Math.abs(x),Math.abs(z))!==slabHalf)continue;
+    if(z===slabHalf&&Math.abs(x)<=2)continue; /* gate opening in front */
+    put(x,slabY+1,z,P.wood);
+  }
+}
+
+/* ---------------- scene assembly ---------------- */
+const G=35;
+for(let x=-G;x<=G;x++)for(let z=-G;z<=G;z++){
+  put(x,-1,z,hash(x,0,z)<.14?P.grassDark:P.grass,.10);
+}
+fill(-1,1,12,34,-1,-1,P.path,.10);   /* stone path */
+fill(-2,2,11,11,0,0,P.path,.10);     /* entry step */
+
+/* base platform */
+fill(-10,10,-10,10,0,1,P.stone,.10);
+for(let x=-10;x<=10;x++)for(let z=-10;z<=10;z++){
+  if(Math.max(Math.abs(x),Math.abs(z))!==10)continue;
+  if(z===10&&Math.abs(x)<=2)continue;
+  put(x,2,z,P.wood);
+}
+
+building(2, 9, 9, 5, true); roof(8,  13, 8, 6, 4, 3);
+building(14,8, 7, 4,false); roof(19, 11, 6, 5, 4, 2);
+building(24,6, 5, 4,false); roof(29,  9, 6, 5, 4, 2);
+building(34,5, 4, 3,false); roof(38,  8, 5, 5, 4, 2);
+building(43,4, 3, 3,false); roof(47,  7, 3, 4, 4, 2);
+
+/* golden finial (sorin) */
+fill(0,0,0,0,51,59,P.gold);
+fill(-1,1,-1,1,53,53,P.gold);
+fill(-1,1,-1,1,55,55,P.gold);
+fill(-1,1,-1,1,57,57,P.gold);
+for(let dx=-1;dx<=1;dx++)for(let dz=-1;dz<=1;dz++)for(let dy=-1;dy<=1;dy++){
+  if(dx*dx+dz*dz+dy*dy<=2)put(dx,61+dy,dz,P.gold);
+}
+put(0,63,0,P.gold);
+
+/* stone lanterns along the path */
+for(const [lx,lz] of [[4,16],[-4,16],[4,26],[-4,26]]){
+  put(lx,-1,lz,P.stone);
+  fill(lx,lx,lz,lz,0,2,P.stoneDark,.15);
+  put(lx,3,lz,P.light);
+  put(lx,4,lz,P.stoneDark);
+}
+
+/* trees */
+for(const [tx,tz] of [[-20,-14],[22,-9],[-17,21]]){
+  fill(tx,tx,tz,tz,-1,4,P.trunk,.12);
+  for(let dx=-3;dx<=3;dx++)for(let dz=-3;dz<=3;dz++)for(let dy=-2;dy<=3;dy++){
+    const r2=dx*dx+dz*dz+dy*dy*1.44;
+    if(r2<=10+hash(tx+dx,tz+dy,0)*4)put(tx+dx,7+dy,tz+dz,hash(tx+dx,0,tz+dz)>.3?P.leafDark:P.leaf,.08);
+  }
+}
+
+/* rocks */
+for(const [rx,rz,n] of [[14,13,4],[-16,11,3],[15,-12,4],[-13,-15,2]]){
+  for(let i=0;i<n;i++){
+    const ox=Math.round((hash(i,rx,rz)-.5)*3), oz=Math.round((hash(rx,i,rz)-.5)*3);
+    const hgt=1+Math.round(hash(rx,oz,i));
+    fill(rx+ox,rx+ox,rz+oz,rz+oz,-1,-1+hgt-1,P.stoneDark,.18);
+  }
+}
+
+/* ---------------- three.js setup ---------------- */
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth,innerHeight);
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.08;
+document.body.appendChild(renderer.domElement);
+
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0xbcd4e8);
+scene.fog=new THREE.Fog(0xbcd4e8,90,240);
+
+const cam=new THREE.PerspectiveCamera(45,innerWidth/innerHeight,0.1,500);
+
+const sun=new THREE.DirectionalLight(0xfff1dc,1.5);
+sun.position.set(34,52,26);
+sun.castShadow=true;
+sun.shadow.mapSize.set(2048,2048);
+Object.assign(sun.shadow.camera,{left:-50,right:50,top:50,bottom:-50,near:5,far:160});
+sun.shadow.bias=-0.0004;
+scene.add(sun);
+scene.add(new THREE.HemisphereLight(0xcfe2f3,0x8fa070,0.7));
+
+/* one instanced mesh for every voxel */
+const N=vox.length;
+const mesh=new THREE.InstancedMesh(new THREE.BoxGeometry(.97,.97,.97),new THREE.MeshLambertMaterial(),N);
+window.__vox=N;
+const M=new THREE.Matrix4(), col=new THREE.Color();
+vox.forEach((v,i)=>{M.setPosition(v.x,v.y,v.z);mesh.setMatrixAt(i,M);mesh.setColorAt(i,col.set(v.c));});
+mesh.instanceMatrix.needsUpdate=true;
+if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;
+mesh.castShadow=true;
+mesh.receiveShadow=true;
+mesh.frustumCulled=false;
+scene.add(mesh);
+
+/* ---------------- orbit control ---------------- */
+const target=new THREE.Vector3(0,22,0);
+let theta=0.9,phi=1.25,r=108, tTheta=theta,tPhi=phi,tR=r;
+let dragging=false,lx=0,ly=0,idle=0;
+const el=renderer.domElement;
+el.addEventListener('pointerdown',e=>{dragging=true;lx=e.clientX;ly=e.clientY;el.setPointerCapture(e.pointerId);});
+el.addEventListener('pointerup',()=>dragging=false);
+el.addEventListener('pointermove',e=>{
+  if(!dragging)return;
+  tTheta-=(e.clientX-lx)*0.005;
+  tPhi=Math.max(0.08,Math.min(1.52,tPhi-(e.clientY-ly)*0.005));
+  lx=e.clientX;ly=e.clientY;idle=0;
+});
+el.addEventListener('wheel',e=>{
+  e.preventDefault();
+  tR=Math.max(18,Math.min(140,tR*Math.exp(e.deltaY*0.0012)));
+  idle=0;
+},{passive:false});
+
+function frame(){
+  requestAnimationFrame(frame);
+  if(!dragging){idle+=16;if(idle>2500)tTheta+=0.0016;}
+  theta+=(tTheta-theta)*0.12;
+  phi+=(tPhi-phi)*0.12;
+  r+=(tR-r)*0.12;
+  cam.position.set(
+    target.x+r*Math.sin(phi)*Math.sin(theta),
+    target.y+r*Math.cos(phi),
+    target.z+r*Math.sin(phi)*Math.cos(theta));
+  cam.lookAt(target);
+  renderer.render(scene,cam);
+}
+requestAnimationFrame(frame);
+
+addEventListener('resize',()=>{
+  cam.aspect=innerWidth/innerHeight;
+  cam.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+</script>
+</body>
+</html>
