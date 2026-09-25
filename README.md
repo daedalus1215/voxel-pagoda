@@ -8,7 +8,15 @@ hand-written, seeded, and fully parametric.
 
 ## Run
 
-Any static server works (ES module imports need `http://`, not `file://`):
+`single.html` is fully self-contained — open it directly (double-click /
+`file://`), no server needed. Regenerate it after editing `index.html`:
+
+```sh
+node build-single.mjs
+```
+
+Otherwise any static server works for the source form (`index.html` uses an
+ES module import, which needs `http://`, not `file://`):
 
 ```sh
 python3 -m http.server 8471
@@ -54,5 +62,7 @@ on ridge plateaus, eave slope, height bounds). No dependencies.
 
 ## Files
 
+- `single.html` — self-contained build (three.js inlined), runs from `file://`
+- `build-single.mjs` — regenerates `single.html` from `index.html`
 - `index.html` — the whole scene + generator
 - `lib/three.module.js` — three.js r170.0, unmodified
