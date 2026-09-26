@@ -54922,7 +54922,7 @@ scene.add(mesh);
 
 /* window glow: HDR copy of every window voxel in the bloom scene */
 const winGlowMat=new THREE.MeshBasicMaterial({color:new THREE.Color(0,0,0),toneMapped:false});
-const winGlow=new THREE.InstancedMesh(new THREE.BoxGeometry(.9,.9,.9),winGlowMat,WINDOWS.length);
+const winGlow=new THREE.InstancedMesh(new THREE.BoxGeometry(.7,.7,.7),winGlowMat,WINDOWS.length);
 {
   const mm=new THREE.Matrix4();
   WINDOWS.forEach((w,i)=>{mm.setPosition(w.x,w.y,w.z);winGlow.setMatrixAt(i,mm);});
@@ -55043,7 +55043,7 @@ function setNight(on){
   moonGlowMat.color.setRGB(on?1.6:0,on?1.7:0,on?1.9:0);
   for(const w of WINDOWS)mesh.setColorAt(w.vi,col.set(on?0xffc873:vox[w.vi].c));
   if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;
-  winGlowMat.color.setRGB(on?2.2:0,on?1.6:0,on?0.9:0);
+  winGlowMat.color.setRGB(on?1.4:0,on?1.0:0,on?0.55:0);
 }
 addEventListener('keydown',e=>{if(e.key==='n'||e.key==='N')setNight(!night);});
 setNight(night);
