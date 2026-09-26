@@ -8,7 +8,15 @@ hand-written, seeded, and fully parametric.
 
 ## Run
 
-Any static server works (ES module imports need `http://`, not `file://`):
+`single.html` is fully self-contained — open it directly (double-click /
+`file://`), no server needed. Regenerate it after editing `index.html`:
+
+```sh
+node build-single.mjs
+```
+
+Otherwise any static server works for the source form (`index.html` uses an
+ES module import, which needs `http://`, not `file://`):
 
 ```sh
 python3 -m http.server 8471
@@ -45,6 +53,11 @@ e.g. `http://localhost:8471/?seed=7&night=1`
 - Rendering: Lambert + per-instance color, ACES tone mapping, PCF soft
   shadows, one directional sun + hemisphere fill, fog. Orbit control is a
   ~30-line custom implementation (no addons).
+- Motion: 7 drifting voxel cloud clusters (a second `InstancedMesh` with
+  per-frame matrix updates), 240 falling petal quads in a single `Points`
+  object (canvas-generated sprite, seeded fall/sway), and a 28-second
+  cinematic intro orbit that hands off to the orbit control on the first
+  pointerdown/wheel. Clouds and petals re-tint in night mode.
 
 ## Testing
 
@@ -54,5 +67,7 @@ on ridge plateaus, eave slope, height bounds). No dependencies.
 
 ## Files
 
+- `single.html` — self-contained build (three.js inlined), runs from `file://`
+- `build-single.mjs` — regenerates `single.html` from `index.html`
 - `index.html` — the whole scene + generator
 - `lib/three.module.js` — three.js r170.0, unmodified
