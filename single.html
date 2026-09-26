@@ -54823,6 +54823,90 @@ mesh.receiveShadow=true;
 mesh.frustumCulled=false;
 scene.add(mesh);
 
+/* ---------------- ambient motion: clouds, petals, intro tour ---------------- */
+const ambRng=mulberry32(((SEED??0x5eed)>>>0));
+
+/* drifting voxel clouds */
+const cloudData=[];
+{
+  const cluster=(w,d)=>{
+    const v=[];
+    for(let x=-w;x<=w;x++)for(let z=-d;z<=d;z++){
+      const e=(x*x)/(w*w)+(z*z)/(d*d);
+      if(e<=1.05-0.25*Math.abs(x)/w)v.push({x,z,y:0});
+      if(e<=0.45)v.push({x,z,y:1});
+    }
+    return v;
+  };
+  for(let c=0;c<7;c++){
+    cloudData.push({
+      x:(ambRng()*2-1)*(G+10), z:(ambRng()*2-1)*(G+10),
+      y:44+Math.floor(ambRng()*12), sp:0.6+ambRng()*1.2,
+      vox:cluster(4+Math.floor(ambRng()*5),2+Math.floor(ambRng()*3)),
+    });
+  }
+}
+let cloudN=0; for(const c of cloudData)cloudN+=c.vox.length;
+const cloudMat=new THREE.MeshLambertMaterial({color:0xf4f7fb});
+const cloudMesh=new THREE.InstancedMesh(new THREE.BoxGeometry(1,.8,1),cloudMat,cloudN);
+cloudMesh.frustumCulled=false;
+scene.add(cloudMesh);
+
+/* falling petals: one Points object, deterministic per seed */
+function makePetalTexture(){
+  const c=document.createElement('canvas');c.width=c.height=32;
+  const g=c.getContext('2d');
+  g.translate(16,16);g.rotate(.6);
+  const gr=g.createRadialGradient(0,0,2,0,0,14);
+  gr.addColorStop(0,'rgba(255,216,226,1)');
+  gr.addColorStop(1,'rgba(243,164,190,0)');
+  g.fillStyle=gr;
+  g.beginPath();g.ellipse(0,0,13,8,0,0,6.283);g.fill();
+  return new THREE.CanvasTexture(c);
+}
+const PALS=240;
+const pPos=new Float32Array(PALS*3),pVy=new Float32Array(PALS),pFr=new Float32Array(PALS),pPh=new Float32Array(PALS),pTop=new Float32Array(PALS);
+for(let i=0;i<PALS;i++){
+  pPos[i*3]=(ambRng()*2-1)*(G+4);
+  pPos[i*3+1]=2+ambRng()*45;
+  pPos[i*3+2]=(ambRng()*2-1)*(G+4);
+  pVy[i]=.8+ambRng()*1.4; pFr[i]=.4+ambRng(); pPh[i]=ambRng()*6.283;
+  pTop[i]=42+ambRng()*14;
+}
+const petalGeo=new THREE.BufferGeometry();
+petalGeo.setAttribute('position',new THREE.BufferAttribute(pPos,3));
+const petalMat=new THREE.PointsMaterial({map:makePetalTexture(),size:.8,transparent:true,opacity:.9,depthWrite:false});
+const petals=new THREE.Points(petalGeo,petalMat);
+petals.frustumCulled=false;
+scene.add(petals);
+
+const cM=new THREE.Matrix4();
+function updateClouds(dt){
+  let i=0;
+  for(const c of cloudData){
+    c.x+=c.sp*dt;
+    if(c.x>G+16)c.x=-G-16;
+    for(const v of c.vox){
+      cM.setPosition(c.x+v.x,c.y+v.y,c.z+v.z);
+      cloudMesh.setMatrixAt(i++,cM);
+    }
+  }
+  cloudMesh.instanceMatrix.needsUpdate=true;
+}
+function updatePetals(t,dt){
+  for(let i=0;i<PALS;i++){
+    const j=i*3;
+    pPos[j+1]-=pVy[i]*dt;
+    pPos[j]+=Math.sin(t*pFr[i]+pPh[i])*dt*.8+dt*.2;
+    pPos[j+2]+=Math.cos(t*pFr[i]*.7+pPh[i])*dt*.5;
+    if(pPos[j+1]<-.8)pPos[j+1]=pTop[i];
+  }
+  petalGeo.attributes.position.needsUpdate=true;
+}
+
+/* cinematic intro: slow rise-and-orbit until first user input */
+let tour=true,tourT=0;
+
 /* night mode: ?night=1 or press n */
 const lanternLights=[];
 for(const [lx,lz] of LANTERN_SPOTS){
@@ -54842,20 +54926,22 @@ function setNight(on){
   hemi.groundColor.set(on?0x0e131c:0x8fa070);
   hemi.intensity=on?0.45:0.7;
   for(const L of lanternLights)L.intensity=on?15:0;
+  cloudMat.color.set(on?0x2a3550:0xf4f7fb);
+  petalMat.opacity=on?.35:.9;
 }
 addEventListener('keydown',e=>{if(e.key==='n'||e.key==='N')setNight(!night);});
 setNight(night);
 
 /* HUD */
 document.getElementById('hud').innerHTML=
-  `voxel pagoda · three.js${SEED!=null?` · seed ${SEED}`:''}<br>drag — orbit · wheel — zoom · n — night`;
+  `voxel pagoda · three.js${SEED!=null?` · seed ${SEED}`:''}<br>drag — orbit · wheel — zoom · n — night<br>cinematic intro stops on first input`;
 
 /* ---------------- orbit control ---------------- */
 const target=new THREE.Vector3(0,22,0);
 let theta=0.9,phi=1.25,r=108, tTheta=theta,tPhi=phi,tR=r;
 let dragging=false,lx=0,ly=0,idle=0;
 const el=renderer.domElement;
-el.addEventListener('pointerdown',e=>{dragging=true;lx=e.clientX;ly=e.clientY;el.setPointerCapture(e.pointerId);});
+el.addEventListener('pointerdown',e=>{dragging=true;tour=false;lx=e.clientX;ly=e.clientY;el.setPointerCapture(e.pointerId);});
 el.addEventListener('pointerup',()=>dragging=false);
 el.addEventListener('pointermove',e=>{
   if(!dragging)return;
@@ -54865,21 +54951,35 @@ el.addEventListener('pointermove',e=>{
 });
 el.addEventListener('wheel',e=>{
   e.preventDefault();
+  tour=false;
   tR=Math.max(18,Math.min(140,tR*Math.exp(e.deltaY*0.0012)));
   idle=0;
 },{passive:false});
 
-function frame(){
+let lastT=performance.now();
+function frame(now){
   requestAnimationFrame(frame);
-  if(!dragging){idle+=16;if(idle>2500)tTheta+=0.0016;}
-  theta+=(tTheta-theta)*0.12;
-  phi+=(tPhi-phi)*0.12;
-  r+=(tR-r)*0.12;
+  const dt=Math.min(.1,(now-lastT)/1000);lastT=now;
+  if(tour){
+    tourT+=dt;
+    const k=Math.min(1,tourT/28),e=k*k*(3-2*k);
+    theta=tTheta=-.6+e*1.9;
+    phi=tPhi=1.38-.23*e;
+    r=tR=150-55*e;
+    target.y=34-18*e;
+  }else{
+    if(!dragging){idle+=16;if(idle>2500)tTheta+=0.0016;}
+    theta+=(tTheta-theta)*.12;
+    phi+=(tPhi-phi)*.12;
+    r+=(tR-r)*.12;
+  }
   cam.position.set(
     target.x+r*Math.sin(phi)*Math.sin(theta),
     target.y+r*Math.cos(phi),
     target.z+r*Math.sin(phi)*Math.cos(theta));
   cam.lookAt(target);
+  updateClouds(dt);
+  updatePetals(now/1000,dt);
   renderer.render(scene,cam);
 }
 requestAnimationFrame(frame);

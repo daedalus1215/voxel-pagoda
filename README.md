@@ -53,6 +53,11 @@ e.g. `http://localhost:8471/?seed=7&night=1`
 - Rendering: Lambert + per-instance color, ACES tone mapping, PCF soft
   shadows, one directional sun + hemisphere fill, fog. Orbit control is a
   ~30-line custom implementation (no addons).
+- Motion: 7 drifting voxel cloud clusters (a second `InstancedMesh` with
+  per-frame matrix updates), 240 falling petal quads in a single `Points`
+  object (canvas-generated sprite, seeded fall/sway), and a 28-second
+  cinematic intro orbit that hands off to the orbit control on the first
+  pointerdown/wheel. Clouds and petals re-tint in night mode.
 
 ## Testing
 
