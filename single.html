@@ -54768,7 +54768,8 @@ for(const [lx,lz] of LANTERNS){
 
 /* trees */
 const TREE_SPOTS=[[-20,-14],[22,-9],[-17,21],[14,18]];
-for(const [tx,tz] of TREE_SPOTS.slice(0,rng?2+Math.floor(rng()*3):3)){
+const NTREE=rng?2+Math.floor(rng()*3):3;
+for(const [tx,tz] of TREE_SPOTS.slice(0,NTREE)){
   const sak=hash(tx,tz,30)>.5;
   fill(tx,tx,tz,tz,-1,4,P.trunk,.12);
   for(let dx=-3;dx<=3;dx++)for(let dz=-3;dz<=3;dz++)for(let dy=-2;dy<=3;dy++){
@@ -54911,6 +54912,34 @@ void main(){float h=clamp(normalize(vPos).y,0.,1.);gl_FragColor=vec4(mix(uHorizo
 const skySphere=new THREE.Mesh(new THREE.SphereGeometry(400,32,16),skyMat);
 skySphere.renderOrder=-1;
 scene.add(skySphere);
+
+/* fireflies: warm specks drifting around the trees (bloom scene only) */
+const NF=14;
+const fData=[];
+for(let i=0;i<NF;i++){
+  const [tx,tz]=TREE_SPOTS[i%NTREE];
+  const a=hash(i,3,5)*6.2832, rr=3+hash(i,5,7)*3;
+  fData.push({
+    x:tx+rr*Math.cos(a), z:tz+rr*Math.sin(a),
+    y:1+hash(i,7,9)*3,
+    p1:hash(i,9,11)*6.2832, p2:hash(i,11,13)*6.2832, p3:hash(i,13,15)*6.2832,
+    s1:.3+hash(i,15,17)*.4, s2:.25+hash(i,17,19)*.35, s3:.4+hash(i,19,21)*.5,
+  });
+}
+const fireflyMat=new THREE.MeshBasicMaterial({color:new THREE.Color(0,0,0),toneMapped:false});
+const fireflies=new THREE.InstancedMesh(new THREE.BoxGeometry(.35,.35,.35),fireflyMat,NF);
+fireflies.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+fireflies.frustumCulled=false;
+bloomScene.add(fireflies);
+const fM=new THREE.Matrix4();
+function updateFireflies(t){
+  for(let i=0;i<NF;i++){
+    const f=fData[i];
+    fM.setPosition(f.x+Math.sin(t*f.s1+f.p1)*1.6,f.y+Math.sin(t*f.s2+f.p2)*1.1,f.z+Math.cos(t*f.s3+f.p3)*1.6);
+    fireflies.setMatrixAt(i,fM);
+  }
+  fireflies.instanceMatrix.needsUpdate=true;
+}
 
 const sun=new THREE.DirectionalLight(0xfff1dc,1.5);
 sun.position.set(34,52,26);
@@ -55061,6 +55090,7 @@ function setNight(on){
   for(const w of WINDOWS)mesh.setColorAt(w.vi,col.set(on?0xffc873:vox[w.vi].c));
   if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;
   winGlowMat.color.setRGB(on?0.85:0,on?0.6:0,on?0.3:0);
+  fireflyMat.color.setRGB(on?1.8:0,on?1.3:0,on?0.5:0);
 }
 addEventListener('keydown',e=>{if(e.key==='n'||e.key==='N')setNight(!night);});
 setNight(night);
@@ -55113,6 +55143,7 @@ function frame(now){
   cam.lookAt(target);
   updateClouds(dt);
   updatePetals(now/1000,dt);
+  updateFireflies(now/1000);
   renderer.setRenderTarget(sceneRT);
   renderer.render(scene,cam);
   renderer.setRenderTarget(bloomA);
