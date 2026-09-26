@@ -54831,11 +54831,14 @@ void main(){
 {tDiffuse:{value:null},uDir:{value:new THREE.Vector2()},uTexel:{value:new THREE.Vector2()}});
 const compMat=quadMat(`
 uniform sampler2D tScene;uniform sampler2D tBloom;uniform float uStrength;
+uniform float uVignette;
 varying vec2 vUv;
 void main(){
-  gl_FragColor=vec4(texture2D(tScene,vUv).rgb+texture2D(tBloom,vUv).rgb*uStrength,1.);
+  vec3 rgb=texture2D(tScene,vUv).rgb+texture2D(tBloom,vUv).rgb*uStrength;
+  rgb*=1.-uVignette*smoothstep(.45,.85,distance(vUv,vec2(.5)));
+  gl_FragColor=vec4(rgb,1.);
 }`,
-{tScene:{value:null},tBloom:{value:null},uStrength:{value:1.2}});
+{tScene:{value:null},tBloom:{value:null},uStrength:{value:1.2},uVignette:{value:0.18}});
 let sceneRT,bloomA,bloomB;
 function makeRTs(){
   const pr=Math.min(devicePixelRatio,2);
