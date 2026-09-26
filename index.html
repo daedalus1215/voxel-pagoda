@@ -78,6 +78,7 @@ function hash(x,y,z){
 
 /* ---------------- voxel collector ---------------- */
 const vox=[];
+const WINDOWS=[]; /* {vi,x,y,z} — window voxels, re-lit at night */
 function put(x,y,z,c,j=0){
   if(j){ const f=1+(hash(x,y,z)-.5)*j; c=new THREE.Color(c).multiplyScalar(f).getHex(); }
   vox.push({x,y,z,c});
@@ -132,7 +133,7 @@ function building(slabY,slabHalf,b,h,door){
       else{
         const win=(z===b||z===-b)?(Math.abs(z)===b&&Math.abs(x)===off)
               :(x===b||x===-b)?(Math.abs(x)===b&&Math.abs(z)===off):false;
-        if(win&&y>=slabY+h-3&&y<=slabY+h-2)c=P.win;
+        if(win&&y>=slabY+h-3&&y<=slabY+h-2){c=P.win;WINDOWS.push({vi:vox.length,x,y,z});}
       }
       put(x,y,z,c,.06);
     }
@@ -343,6 +344,17 @@ mesh.receiveShadow=true;
 mesh.frustumCulled=false;
 scene.add(mesh);
 
+/* window glow: HDR copy of every window voxel in the bloom scene */
+const winGlowMat=new THREE.MeshBasicMaterial({color:new THREE.Color(0,0,0),toneMapped:false});
+const winGlow=new THREE.InstancedMesh(new THREE.BoxGeometry(.9,.9,.9),winGlowMat,WINDOWS.length);
+{
+  const mm=new THREE.Matrix4();
+  WINDOWS.forEach((w,i)=>{mm.setPosition(w.x,w.y,w.z);winGlow.setMatrixAt(i,mm);});
+  winGlow.instanceMatrix.needsUpdate=true;
+}
+winGlow.frustumCulled=false;
+bloomScene.add(winGlow);
+
 /* ---------------- ambient motion: clouds, petals, intro tour ---------------- */
 const ambRng=mulberry32(((SEED??0x5eed)>>>0));
 
@@ -453,6 +465,9 @@ function setNight(on){
   starMat.opacity=on?.8:0;
   moonSolid.visible=on;
   moonGlowMat.color.setRGB(on?1.6:0,on?1.7:0,on?1.9:0);
+  for(const w of WINDOWS)mesh.setColorAt(w.vi,col.set(on?0xffc873:vox[w.vi].c));
+  if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;
+  winGlowMat.color.setRGB(on?2.2:0,on?1.6:0,on?0.9:0);
 }
 addEventListener('keydown',e=>{if(e.key==='n'||e.key==='N')setNight(!night);});
 setNight(night);
