@@ -73,7 +73,7 @@ moon make the pagoda feel inhabited.
 **Accept.** Night render: warm windows with soft glow on all floors. Day
 render: windows dark again, pixel-identical to the post-item-1 day render.
 
-## 4. Day sky gradient — status: pending (needs sign-off: changes the day look)
+## 4. Day sky gradient — status: done (cf83b0c, sign-off given)
 
 **Why.** The flat `#bcd4e8` background reads as "diorama on a colored card."
 
