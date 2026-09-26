@@ -54604,7 +54604,7 @@ const P = {
   door:0x46301b, win:0x3c2a17,
   stone:0x9c9da6, stoneDark:0x7b7c86,
   grass:0x6f9e57, grassDark:0x5c8a46, path:0xbdb7a9,
-  trunk:0x6b4a30, leaf:0x4f8a3d, leafDark:0x3e722f,
+  trunk:0x6b4a30, leaf:0x4f8a3d, leafDark:0x3e722f, sakura:0xe8a7b8, sakuraDark:0xd4829a,
   light:0xffd27a,
 };
 
@@ -54768,10 +54768,11 @@ for(const [lx,lz] of LANTERNS){
 /* trees */
 const TREE_SPOTS=[[-20,-14],[22,-9],[-17,21],[14,18]];
 for(const [tx,tz] of TREE_SPOTS.slice(0,rng?2+Math.floor(rng()*3):3)){
+  const sak=hash(tx,tz,7)>.5;
   fill(tx,tx,tz,tz,-1,4,P.trunk,.12);
   for(let dx=-3;dx<=3;dx++)for(let dz=-3;dz<=3;dz++)for(let dy=-2;dy<=3;dy++){
     const r2=dx*dx+dz*dz+dy*dy*1.44;
-    if(r2<=10+hash(tx+dx,tz+dy,0)*4)put(tx+dx,7+dy,tz+dz,hash(tx+dx,0,tz+dz)>.3?P.leafDark:P.leaf,.08);
+    if(r2<=10+hash(tx+dx,tz+dy,0)*4)put(tx+dx,7+dy,tz+dz,hash(tx+dx,0,tz+dz)>.3?(sak?P.sakuraDark:P.leafDark):(sak?P.sakura:P.leaf),.08);
   }
 }
 
