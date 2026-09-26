@@ -16,7 +16,7 @@ per item; each item ships only when its acceptance criteria are met.
   test-tiers.mjs` (2000 seeds), `node build-single.mjs`, headless day +
   night renders (Chromium, SwiftShader, virtual time), then commit.
 
-## 1. Sakura tree — status: pending
+## 1. Sakura tree — status: done (ed7fbd1, 1128bed)
 
 **Why.** The falling petals are cherry-blossom pink, but every tree is green;
 the scene's own story is contradicted.
