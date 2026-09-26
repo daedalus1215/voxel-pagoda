@@ -34,7 +34,7 @@ python3 -m http.server 8471
 | param | effect |
 |---|---|
 | `?seed=N` | generate a different pagoda: tier count (3–5), footprint, eave span/ridge, lift, palette drift, and environment counts. No seed → the curated default build. |
-| `?night=1` | start in night mode: moonlight, dark sky, warm `PointLight`s at the stone lanterns. |
+| `?night=1` | start in night mode: gradient night sky with stars and moon, lit windows, warm `PointLight`s at the stone lanterns, fireflies. |
 
 e.g. `http://localhost:8471/?seed=7&night=1`
 
@@ -55,14 +55,22 @@ e.g. `http://localhost:8471/?seed=7&night=1`
   ~30-line custom implementation (no addons).
 - Motion: 7 drifting voxel cloud clusters (a second `InstancedMesh` with
   per-frame matrix updates), 240 falling petal quads in a single `Points`
-  object (canvas-generated sprite, seeded fall/sway), and a 28-second
-  cinematic intro orbit that hands off to the orbit control on the first
-  pointerdown/wheel. Clouds and petals re-tint in night mode.
+  object (canvas-generated sprite, seeded fall/sway), 14 fireflies drifting
+  on deterministic sine loops around the trees (bloom-only, night), and a
+  28-second cinematic intro orbit that hands off to the orbit control on
+  the first pointerdown/wheel. Clouds and petals re-tint in night mode.
+- Sky: a back-side gradient sphere (vertical horizon→zenith ramp,
+  fog-exempt) — the day/night color pairs swap in `setNight`. Night adds a
+  hash-placed star dome (one `Points`, pixel-size, fog-exempt) and a small
+  voxel moon; the moon's HDR copy lives in the bloom scene for a soft halo.
 - Night bloom: hand-rolled, no addons. The scene renders into an MSAA
-  `WebGLRenderTarget`; the lantern flames (a tiny separate scene of HDR
-  unlit boxes) render into a 1/4-res HalfFloat target; two separable
-  9-tap Gaussian passes; additive composite to the canvas. Flames are
-  black in day mode, so the bloom is free then.
+  `WebGLRenderTarget`; a tiny separate scene of HDR unlit boxes — lantern
+  flames, window glow (one per window voxel; the windows themselves are
+  re-lit warm via `setColorAt`), the moon halo, and the fireflies — renders
+  into a 1/4-res HalfFloat target; two separable 9-tap Gaussian passes;
+  additive composite to the canvas, finished with a 0.18 smoothstep
+  vignette. All HDR sources are black in day mode, so the bloom is free
+  then.
 
 ## Testing
 

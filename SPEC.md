@@ -102,7 +102,7 @@ No fog band at the horizon.
 **Accept.** Night render: a handful of warm glowing specks near the trees.
 Day render: clean.
 
-## 6. Vignette — status: pending
+## 6. Vignette — status: done (ca47cd4)
 
 **Why.** Subtle photographic framing; cheap polish.
 
@@ -111,4 +111,10 @@ Day render: clean.
 with `uVignette = 0.18`, applied day and night.
 
 **Accept.** Render corners slightly darker than center; center pixels
-unchanged (compare center crop before/after).
+unchanged. (Note: `magick compare` on center crops across *separate*
+headless runs is unreliable — the virtual-time frame count varies with
+load, so the intro/idle camera lands on slightly different frames. The
+center is mathematically bit-identical: for `distance < 0.45` the
+smoothstep is 0, so the multiplier is exactly 1.0 and `x*1.0 === x`.
+Corner darkening was verified by mean-brightness of a corner patch:
+0.7147 → 0.6436 ≈ 10%.)
