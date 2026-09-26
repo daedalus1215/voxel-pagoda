@@ -297,6 +297,29 @@ const stars=new THREE.Points(starGeo,starMat);
 stars.frustumCulled=false;
 scene.add(stars);
 
+/* voxel moon: solid in the scene + HDR copy in the bloom scene (halo) */
+const MOON_POS=new THREE.Vector3(-95,22,-85);
+const moonCells=[];
+for(let dx=-3;dx<=3;dx++)for(let dy=-2;dy<=2;dy++)for(let dz=-3;dz<=3;dz++){
+  if(dx*dx+dz*dz+dy*dy*2<=9.5)moonCells.push([dx,dy,dz]);
+}
+const moonGeo=new THREE.BoxGeometry(1,1,1);
+const moonSolid=new THREE.InstancedMesh(moonGeo,new THREE.MeshBasicMaterial({color:0xdde5f0,fog:false}),moonCells.length);
+const moonGlowMat=new THREE.MeshBasicMaterial({color:new THREE.Color(0,0,0),toneMapped:false});
+const moonGlow=new THREE.InstancedMesh(moonGeo,moonGlowMat,moonCells.length);
+{
+  const mm=new THREE.Matrix4();
+  moonCells.forEach(([dx,dy,dz],i)=>{mm.setPosition(dx,dy,dz);moonSolid.setMatrixAt(i,mm);moonGlow.setMatrixAt(i,mm);});
+  moonSolid.instanceMatrix.needsUpdate=true;
+  moonGlow.instanceMatrix.needsUpdate=true;
+}
+moonSolid.position.copy(MOON_POS);
+moonGlow.position.copy(MOON_POS);
+moonSolid.frustumCulled=false;
+moonGlow.frustumCulled=false;
+scene.add(moonSolid);
+bloomScene.add(moonGlow);
+
 const sun=new THREE.DirectionalLight(0xfff1dc,1.5);
 sun.position.set(34,52,26);
 sun.castShadow=true;
@@ -428,6 +451,8 @@ function setNight(on){
   petalMat.color.set(on?0x8a5566:0xffffff);
   flameMat.color.setRGB(on?2.6:0,on?1.9:0,on?1.0:0);
   starMat.opacity=on?.8:0;
+  moonSolid.visible=on;
+  moonGlowMat.color.setRGB(on?1.6:0,on?1.7:0,on?1.9:0);
 }
 addEventListener('keydown',e=>{if(e.key==='n'||e.key==='N')setNight(!night);});
 setNight(night);
