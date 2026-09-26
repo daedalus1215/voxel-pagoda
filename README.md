@@ -58,6 +58,11 @@ e.g. `http://localhost:8471/?seed=7&night=1`
   object (canvas-generated sprite, seeded fall/sway), and a 28-second
   cinematic intro orbit that hands off to the orbit control on the first
   pointerdown/wheel. Clouds and petals re-tint in night mode.
+- Night bloom: hand-rolled, no addons. The scene renders into an MSAA
+  `WebGLRenderTarget`; the lantern flames (a tiny separate scene of HDR
+  unlit boxes) render into a 1/4-res HalfFloat target; two separable
+  9-tap Gaussian passes; additive composite to the canvas. Flames are
+  black in day mode, so the bloom is free then.
 
 ## Testing
 

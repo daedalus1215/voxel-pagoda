@@ -181,7 +181,8 @@ put(0,slabY+12,0,P.gold);
 
 /* stone lanterns along the path */
 const LANTERN_SPOTS=[[4,16],[-4,16],[4,26],[-4,26]];
-for(const [lx,lz] of LANTERN_SPOTS.slice(0,rng?2+2*Math.floor(rng()*2):LANTERN_SPOTS.length)){
+const LANTERNS=LANTERN_SPOTS.slice(0,rng?2+2*Math.floor(rng()*2):LANTERN_SPOTS.length);
+for(const [lx,lz] of LANTERNS){
   put(lx,-1,lz,P.stone);
   fill(lx,lx,lz,lz,0,2,P.stoneDark,.15);
   put(lx,3,lz,P.light);
@@ -223,6 +224,61 @@ scene.background=new THREE.Color(0xbcd4e8);
 scene.fog=new THREE.Fog(0xbcd4e8,90,240);
 
 const cam=new THREE.PerspectiveCamera(45,innerWidth/innerHeight,0.1,500);
+
+/* ---------------- hand-rolled bloom (no addons) ---------------- */
+/* scene → MSAA RT; lantern flames (HDR, unlit) in a tiny separate scene →
+   1/4-res HalfFloat RT; 2x separable 9-tap Gaussian; additive composite. */
+const fsScene=new THREE.Scene();
+const fsCam=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+const fsGeo=new THREE.BufferGeometry();
+fsGeo.setAttribute('position',new THREE.BufferAttribute(new Float32Array([-1,-1,0,3,-1,0,-1,3,0]),3));
+const fsQuad=new THREE.Mesh(fsGeo,null);
+fsQuad.frustumCulled=false;
+fsScene.add(fsQuad);
+const fsVert=`varying vec2 vUv;void main(){vUv=position.xy*0.5+0.5;gl_Position=vec4(position.xy,0.,1.);}`;
+function quadMat(frag,unif){
+  return new THREE.ShaderMaterial({uniforms:unif,vertexShader:fsVert,fragmentShader:frag,depthTest:false,depthWrite:false,toneMapped:false});
+}
+const blurMat=quadMat(`
+uniform sampler2D tDiffuse;uniform vec2 uDir;uniform vec2 uTexel;
+varying vec2 vUv;
+void main(){
+  vec2 o1=uDir*uTexel*1.384,o2=uDir*uTexel*3.231;
+  vec4 c=texture2D(tDiffuse,vUv)*0.227027;
+  c+=(texture2D(tDiffuse,vUv+o1)+texture2D(tDiffuse,vUv-o1))*0.316216;
+  c+=(texture2D(tDiffuse,vUv+o2)+texture2D(tDiffuse,vUv-o2))*0.070270;
+  gl_FragColor=c;
+}`,
+{tDiffuse:{value:null},uDir:{value:new THREE.Vector2()},uTexel:{value:new THREE.Vector2()}});
+const compMat=quadMat(`
+uniform sampler2D tScene;uniform sampler2D tBloom;uniform float uStrength;
+varying vec2 vUv;
+void main(){
+  gl_FragColor=vec4(texture2D(tScene,vUv).rgb+texture2D(tBloom,vUv).rgb*uStrength,1.);
+}`,
+{tScene:{value:null},tBloom:{value:null},uStrength:{value:1.2}});
+let sceneRT,bloomA,bloomB;
+function makeRTs(){
+  const pr=Math.min(devicePixelRatio,2);
+  const w=Math.max(1,Math.floor(innerWidth*pr)),h=Math.max(1,Math.floor(innerHeight*pr));
+  sceneRT?.dispose();bloomA?.dispose();bloomB?.dispose();
+  sceneRT=new THREE.WebGLRenderTarget(w,h,{samples:4,minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter});
+  const bw=w>>2||1,bh=h>>2||1;
+  bloomA=new THREE.WebGLRenderTarget(bw,bh,{type:THREE.HalfFloatType,depthBuffer:false,minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter});
+  bloomB=new THREE.WebGLRenderTarget(bw,bh,{type:THREE.HalfFloatType,depthBuffer:false,minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter});
+  blurMat.uniforms.uTexel.value.set(1/bw,1/bh);
+}
+makeRTs();
+const flameMat=new THREE.MeshBasicMaterial({color:new THREE.Color(0,0,0),toneMapped:false});
+const flames=new THREE.InstancedMesh(new THREE.BoxGeometry(.7,.7,.7),flameMat,LANTERNS.length);
+{
+  const fm=new THREE.Matrix4();
+  LANTERNS.forEach(([lx,lz],i)=>{fm.setPosition(lx,3,lz);flames.setMatrixAt(i,fm);});
+  flames.instanceMatrix.needsUpdate=true;
+}
+const bloomScene=new THREE.Scene();
+bloomScene.background=new THREE.Color(0);
+bloomScene.add(flames);
 
 const sun=new THREE.DirectionalLight(0xfff1dc,1.5);
 sun.position.set(34,52,26);
@@ -333,7 +389,7 @@ let tour=true,tourT=0;
 
 /* night mode: ?night=1 or press n */
 const lanternLights=[];
-for(const [lx,lz] of LANTERN_SPOTS){
+for(const [lx,lz] of LANTERNS){
   const L=new THREE.PointLight(0xffb347,0,14,2);
   L.position.set(lx,3.5,lz);
   scene.add(L);
@@ -345,13 +401,15 @@ function setNight(on){
   scene.background.set(on?0x0d1322:0xbcd4e8);
   scene.fog.color.copy(scene.background);
   sun.color.set(on?0x93a7cc:0xfff1dc);
-  sun.intensity=on?0.7:1.5;
+  sun.intensity=on?0.9:1.5;
   hemi.color.set(on?0x1c2740:0xcfe2f3);
   hemi.groundColor.set(on?0x0e131c:0x8fa070);
-  hemi.intensity=on?0.45:0.7;
+  hemi.intensity=on?0.55:0.7;
   for(const L of lanternLights)L.intensity=on?15:0;
   cloudMat.color.set(on?0x2a3550:0xf4f7fb);
   petalMat.opacity=on?.35:.9;
+  petalMat.color.set(on?0x8a5566:0xffffff);
+  flameMat.color.setRGB(on?2.6:0,on?1.9:0,on?1.0:0);
 }
 addEventListener('keydown',e=>{if(e.key==='n'||e.key==='N')setNight(!night);});
 setNight(night);
@@ -404,7 +462,32 @@ function frame(now){
   cam.lookAt(target);
   updateClouds(dt);
   updatePetals(now/1000,dt);
+  renderer.setRenderTarget(sceneRT);
   renderer.render(scene,cam);
+  renderer.setRenderTarget(bloomA);
+  renderer.render(bloomScene,cam);
+  fsQuad.material=blurMat;
+  blurMat.uniforms.tDiffuse.value=bloomA.texture;
+  blurMat.uniforms.uDir.value.set(1,0);
+  renderer.setRenderTarget(bloomB);
+  renderer.render(fsScene,fsCam);
+  blurMat.uniforms.tDiffuse.value=bloomB.texture;
+  blurMat.uniforms.uDir.value.set(0,1);
+  renderer.setRenderTarget(bloomA);
+  renderer.render(fsScene,fsCam);
+  blurMat.uniforms.tDiffuse.value=bloomA.texture;
+  blurMat.uniforms.uDir.value.set(1,0);
+  renderer.setRenderTarget(bloomB);
+  renderer.render(fsScene,fsCam);
+  blurMat.uniforms.tDiffuse.value=bloomB.texture;
+  blurMat.uniforms.uDir.value.set(0,1);
+  renderer.setRenderTarget(bloomA);
+  renderer.render(fsScene,fsCam);
+  fsQuad.material=compMat;
+  compMat.uniforms.tScene.value=sceneRT.texture;
+  compMat.uniforms.tBloom.value=bloomA.texture;
+  renderer.setRenderTarget(null);
+  renderer.render(fsScene,fsCam);
 }
 requestAnimationFrame(frame);
 
@@ -412,6 +495,7 @@ addEventListener('resize',()=>{
   cam.aspect=innerWidth/innerHeight;
   cam.updateProjectionMatrix();
   renderer.setSize(innerWidth,innerHeight);
+  makeRTs();
 });
 </script>
 </body>
