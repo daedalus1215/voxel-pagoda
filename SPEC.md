@@ -35,7 +35,7 @@ the scene's own story is contradicted.
 **Accept.** Day render: first tree clearly pink, others green. Night render
 consistent. All 2000 seed tests pass (structure unchanged — colors only).
 
-## 2. Night stars + voxel moon — status: pending
+## 2. Night stars + voxel moon — status: done (54fee09, 31876f8)
 
 **Why.** The night sky is a flat dark blue with nothing in it.
 
