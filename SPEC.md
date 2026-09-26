@@ -87,7 +87,7 @@ render: windows dark again, pixel-identical to the post-item-1 day render.
 **Accept.** Day render: zenith visibly darker than horizon. Night consistent.
 No fog band at the horizon.
 
-## 5. Fireflies — status: pending
+## 5. Fireflies — status: done (1b571a7)
 
 **Why.** Garnish: warm life around the trees at night.
 
