@@ -281,6 +281,22 @@ const bloomScene=new THREE.Scene();
 bloomScene.background=new THREE.Color(0);
 bloomScene.add(flames);
 
+/* starfield: hash-driven dome, night only */
+const NSTARS=350;
+const starPos=new Float32Array(NSTARS*3);
+for(let i=0;i<NSTARS;i++){
+  const u=hash(i,13,17)*.94, ce=1-u, se=Math.sqrt(1-ce*ce), th=hash(i,7,11)*6.2832;
+  starPos[i*3]=180*se*Math.cos(th);
+  starPos[i*3+1]=180*ce+12;
+  starPos[i*3+2]=180*se*Math.sin(th);
+}
+const starGeo=new THREE.BufferGeometry();
+starGeo.setAttribute('position',new THREE.BufferAttribute(starPos,3));
+const starMat=new THREE.PointsMaterial({color:0xdfe8ff,size:2,sizeAttenuation:false,transparent:true,opacity:0,depthWrite:false,fog:false});
+const stars=new THREE.Points(starGeo,starMat);
+stars.frustumCulled=false;
+scene.add(stars);
+
 const sun=new THREE.DirectionalLight(0xfff1dc,1.5);
 sun.position.set(34,52,26);
 sun.castShadow=true;
@@ -411,6 +427,7 @@ function setNight(on){
   petalMat.opacity=on?.35:.9;
   petalMat.color.set(on?0x8a5566:0xffffff);
   flameMat.color.setRGB(on?2.6:0,on?1.9:0,on?1.0:0);
+  starMat.opacity=on?.8:0;
 }
 addEventListener('keydown',e=>{if(e.key==='n'||e.key==='N')setNight(!night);});
 setNight(night);
