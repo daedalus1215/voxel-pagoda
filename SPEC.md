@@ -52,20 +52,22 @@ consistent. All 2000 seed tests pass (structure unchanged — colors only).
 **Accept.** Night render: star field + moon with soft halo. Day render:
 neither present. Determinism preserved.
 
-## 3. Window glow at night — status: pending
+## 3. Window glow at night — status: done (5953ecf + 2 tune commits)
 
 **Why.** At night the building reads as dead stone. Lit windows + lanterns +
 moon make the pagoda feel inhabited.
 
 **Design.**
 - Collect window voxels in `building()`: when the `P.win` branch fires, push
-  `{x, y, z, vi: vox.length, c: dayColor}` into `WINDOWS` (capture the index
-  *before* `put()`, since `put` pushes to `vox`; store the jittered day hex so
-  day mode restores it exactly).
+  `{vi: vox.length, x, y, z}` into `WINDOWS` (capture the index *before*
+  `put()`, since `put` pushes to `vox`).
 - Night mode: `mesh.setColorAt(vi, 0xffc873)` for every entry
-  (`instanceColor.needsUpdate`); day restores the stored hex.
-- Bloom: second `InstancedMesh` of ~0.9³ boxes in `bloomScene`, one per
-  window, own material — night HDR `(2.2, 1.6, 0.9)`, black by day.
+  (`instanceColor.needsUpdate`); day restores `vox[vi].c` — the exact
+  jittered hex `put` stored, so day is pixel-identical.
+- Bloom: second `InstancedMesh` of 0.5³ boxes in `bloomScene`, one per
+  window, own material — night HDR `(0.85, 0.6, 0.3)`, black by day.
+  (Spec'd at 0.9³ / (2.2, 1.6, 0.9); first render showed the halos merging
+  into a blob that swallowed the pagoda silhouette — damped twice.)
 - No new `PointLight`s (cost).
 
 **Accept.** Night render: warm windows with soft glow on all floors. Day
