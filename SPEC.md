@@ -24,8 +24,12 @@ the scene's own story is contradicted.
 **Design.**
 - Palette: add `sakura:0xe8a7b8` and `sakuraDark:0xd4829a` to `P` (they pick
   up the seeded `offsetHSL` drift automatically).
-- Tree loop: first built tree is always sakura; the rest are sakura when
-  `hash(tx,tz,7) > 0.5`. Foliage ternary becomes
+- Tree loop: a tree is sakura when `hash(tx,tz,30) > 0.5`. Salt 30 is
+  chosen so the sakura spot is `[22,-9]` — visible from both canonical
+  camera angles (the other candidate spots sit behind the pagoda
+  silhouette) and always built (array index 1, included in every
+  2–4 tree slice). 4-tree seed variants get a second sakura at `[14,18]`.
+- Foliage ternary becomes
   `hash(...) > .3 ? (sak ? P.sakuraDark : P.leafDark) : (sak ? P.sakura : P.leaf)`.
 
 **Accept.** Day render: first tree clearly pink, others green. Night render
